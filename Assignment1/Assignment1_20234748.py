@@ -238,23 +238,145 @@ class BTree:
     #  def merge_sibling(self, x, i, j):
         #  pass
 
-    def borrow_sibling(self, x: Node):
-        '''
-        # borrow a key from the sibling of the node x
-        '''
-        parent = x.parent[0]
-        i = x.parent[1]
-
-        # Case 1: borrow from the left sibling
-        if i > 0:
-            left_sibling = parent.children[i-1]
-            if len(left_sibling.keys) >= self.t:
-                # x: [ X Y Z ] -> [ W X Y Z ]
-                x.keys.insert(0, parent.keys[i-1])
-                parent.keys[i-1] = left_sibling.keys.pop()
-                return
-
+    def borrow_sibling(self, x, i, j):
+        pass
         
+
+
+        """
+    def delete(self, k: int) -> None:
+        '''
+        # delete the key k from the B-tree
+        # return: None
+        '''
+        x, i = self.search_key(self.root, k)
+        if x is None:
+            print(f"The key {k} is not in the B-tree.")
+            return
+
+        if x.leaf:
+            self.delete_leaf_node(x, i)
+        else:
+            self.delete_internal_node(x, i)
+        
+        # If root becomes empty and it has a child, reduce tree height
+        if len(self.root.keys) == 0 and not self.root.leaf:
+            self.root = self.root.children[0]
+
+    def delete_leaf_node(self, x: Node, i: int):
+        '''
+        # delete the key in a leaf node
+        # Case 1: The key is originally in a leaf node
+        '''
+        if len(x.keys) >= self.t:
+            # Case 1-1: Simply delete the key
+            x.keys.pop(i)
+        else:
+            # Case 1-2: x has less than t keys after deletion
+            # Try to borrow from sibling or merge
+            self.borrow_merge(x, i)
+            
+    def delete_internal_node(self, x: Node, i: int):
+        '''
+        # delete the key in an internal node
+        '''
+        k = x.keys[i]
+
+        # Predecessor case
+        if len(x.children[i].keys) >= self.t:
+            pred_node, pred_idx = self.find_predecessor(x, i)
+            pred_key = pred_node.keys[pred_idx]
+            x.keys[i] = pred_key  # Replace with predecessor
+            self.delete(pred_key)
+
+        # Successor case
+        elif len(x.children[i+1].keys) >= self.t:
+            succ_node, succ_idx = self.find_successor(x, i)
+            succ_key = succ_node.keys[succ_idx]
+            x.keys[i] = succ_key  # Replace with successor
+            self.delete(succ_key)
+
+        # Merge case
+        else:
+            self.merge_sibling(x, i)
+            self.delete(k)
+
+    def find_predecessor(self, x: Node, i: int):
+        '''
+        # Find the predecessor of the key at index i in node x
+        '''
+        node = x.children[i]
+        while not node.leaf:
+            node = node.children[-1]  # Keep moving to the right
+        return node, len(node.keys) - 1
+
+    def find_successor(self, x: Node, i: int):
+        '''
+        # Find the successor of the key at index i in node x
+        '''
+        node = x.children[i+1]
+        while not node.leaf:
+            node = node.children[0]  # Keep moving to the left
+        return node, 0
+
+    def merge_sibling(self, x: Node, i: int):
+        '''
+        # Merge the i-th child of x with its (i+1)-th sibling
+        '''
+        left_child = x.children[i]
+        right_child = x.children[i+1]
+
+        # Move the key from x down to the left child
+        left_child.keys.append(x.keys[i])
+        
+        # Append all keys and children of the right child to the left child
+        left_child.keys.extend(right_child.keys)
+        if not right_child.leaf:
+            left_child.children.extend(right_child.children)
+        
+        # Remove the key and the right child from x
+        x.keys.pop(i)
+        x.children.pop(i+1)
+
+    def borrow_merge(self, x: Node, i: int):
+        '''
+        # Borrow key from sibling or merge with sibling
+        '''
+        parent, parent_idx = x.parent
+
+        # Borrow from the left sibling
+        if parent_idx > 0 and len(parent.children[parent_idx-1].keys) >= self.t:
+            self.borrow_sibling(x, parent_idx, parent_idx-1)
+
+        # Borrow from the right sibling
+        elif parent_idx < len(parent.children) - 1 and len(parent.children[parent_idx+1].keys) >= self.t:
+            self.borrow_sibling(x, parent_idx, parent_idx+1)
+
+        # Otherwise, merge with a sibling
+        else:
+            if parent_idx > 0:
+                self.merge_sibling(parent, parent_idx-1)
+            else:
+                self.merge_sibling(parent, parent_idx)
+
+    def borrow_sibling(self, x: Node, i: int, sibling_idx: int):
+        '''
+        # Borrow key from the sibling at sibling_idx
+        '''
+        sibling = x.parent[0].children[sibling_idx]
+        parent = x.parent[0]
+
+        if sibling_idx < i:  # Borrow from left sibling
+            x.keys.insert(0, parent.keys[i-1])
+            parent.keys[i-1] = sibling.keys.pop()
+            if not sibling.leaf:
+                x.children.insert(0, sibling.children.pop())
+        else:  # Borrow from right sibling
+            x.keys.append(parent.keys[i])
+            parent.keys[i] = sibling.keys.pop(0)
+            if not sibling.leaf:
+                x.children.append(sibling.children.pop(0))
+        """
 
 
     # for printing the statistic of the resulting B-tree
