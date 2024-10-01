@@ -8,7 +8,7 @@
 # 20234748 나선우
 #
 # Comments:
-#   [ ] stands for a node
+#   [] stands for a node
 #   [.A.B.C.] stands for a node with a key A, B and C
 #   [.A｡B.] stands for a parent node, working between A and B
 #   [.A｡∅｡B.] stands for a parent node,
@@ -22,17 +22,18 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 
+
 # B-Tree Node Class
 class Node:
-    def __init__(self, leaf=False):
-        self.keys: list[int]        = []    # list of keys
-        self.parent: list           = []
-        self.children: list[Node]   = []    # list of children
-        self.leaf: bool             = leaf  # is leaf node
+    def __init__(self, leaf: bool=False) -> None:
+        self.keys: list[list[int]]      = []    # list of keys
+        self.parent: list[Node | int]   = []    # parent node & index
+        self.children: list[Node]       = []    # list of children
+        self.leaf: bool                 = leaf  # is leaf node
 
 # B-Tree Class
 class BTree:
-    def __init__(self, t: int):
+    def __init__(self, t: int) -> None:
         '''
         # create a instance of the Class of a B-Tree
         # t : the minimum degree t
@@ -42,7 +43,7 @@ class BTree:
         self.t: int      = t
 
     # B-Tree-Split-Child
-    def split_child(self, x: Node, i: int):
+    def split_child(self, x: Node, i: int) -> None:
         '''
         # split the node x's i-th child that is full
         # x: the current node
@@ -59,6 +60,7 @@ class BTree:
 
         # z: [ T U V ] -> [.T.U.V.]
         z.children = [] if y.leaf else y.children[self.t:]
+        z.parent = [y.parent[0], y.parent[1]+1]
 
         # y: [.P.Q.R.S.T.U.V.] -> [.P.Q.R.]
         # middle: S
@@ -72,63 +74,155 @@ class BTree:
         # x: [.N｡∅｡W.] -> [.N｡S｡W.]
         x.keys.insert(i, middle)    # insert the middle key of y to x
 
-
     # B-Tree-Insert
-    def insert(self, k):
+    def insert(self, k: list[int]) -> None:
         '''
         # insert the key k into the B-Tree
         # return: None
         '''
-        # (TODO)
-        # Write your own code here
+
+        r: Node = self.root
+
         # Case 1: if the root is full
+        # r: [.A.B.C.D.E.] when t = 3
+        if len(r.keys) == (2*self.t) - 1:
+            # Create new root
+            s: Node = Node(False)
+            self.root = s
+            s.children = [r]
+
+            # Split the old root
+            self.split_child(s, 0)
+            self.insert_key(s, k)
+        
         # Case 2: if the root is not full
+        else:
+            self.insert_key(r, k)
 
-
-    # B-Tree-Insert-Nonfull
-    def insert_key(self, x, k):
+    # B-Tree-Insert-Nonfull: "Only called when non-full"
+    def insert_key(self, x: Node, k: list[int]) -> None:
         '''
         # insert the key k into node x
         # return: None
         '''
-        # (TODO)
-        # Write your own code here
-        # Case 1: if the node x is leaf
-        # Case 2: if the node x is an internal node
+        i: int = len(x.keys) - 1
 
+        # Case 1: if the node x is leaf (& non-full)
+        if x.leaf:
+            # x: [ A B D ] -> [ A B D 0 ] (no child: leaf!)
+            x.keys.append(0)
+
+            # x: [ A B D 0 ] -> [ A B D D ]
+            while i >= 0 and k < x.keys[i]:
+                x.keys[i+1] = x.keys[i]
+                i -= 1
+
+            # x: [ A B D D ] -> [ A B C D ]
+            x.keys[i+1] = k
+
+            # TODO: Disk write here (x)
+
+        # Case 2: if the node x is an internal node
+        else:
+            while i >= 0 and k < x.keys[i]:
+                i -= 1
+            i += 1
+
+            # TODO: Disk read here (x.children[i])
+
+            if len(x.children[i].keys) == (2*self.t) - 1:
+                self.split_child(x, i)
+                if k > x.keys[i]:
+                    i += 1
+                
+            self.insert_key(x.children[i], k)
 
     # B-Tree-Search
-    def search_key(self, x, key):
+    # Note that k is not list[int] but int
+    def search_key(self, x: Node, key: int) -> (tuple[Node, int] | None):
         '''
         # search for the key in node x
-        # return: the node x that contains the key, the index of the key if the key is in the B-tree
+        # return: the node x that contains the key,
+        #         the index of the key if the key is in the B-tree
         '''
-        # (TODO)
-        # Write your own code here
+        i: int = 0
 
-
-
-    def delete(self, k):
+        # TODO: sequential search to binary search
+        while i < len(x.keys) and key > x.keys[i]:
+            i += 1
+        
+        # success: the key is found
+        if i < len(x.keys) and key == x.keys[i][0]:
+            return (x, i)
+        elif x.leaf:            # failure: the key is not found
+            return None
+        else:                   # recursive search
+            # TODO: Disk read here (x.children[i])
+            return self.search_key(x.children[i], key)
+        
+    # B-Tree-Delete
+    # Note that k is not list[int] but int
+    def delete(self, k: int) -> None:
         '''
-        # delete the key k from the B-tree
+        # delete the key k from  the B-tree
         # return: None
         '''
-        # (TODO)
-        # Write your own code here
 
-    def delete_leaf_node(self, x, i):
+        # Search for the key
+        x, i = self.search_key(self.root, k)
+        if x is None:
+            print(f"The key {k} is not in the B-tree.")
+            return
+        
+        # Case 1: The key is originally in a leaf node
+        if x.leaf:
+            self.delete_leaf_node(x, i)
+
+        # Case 2: The key is originally in an internal node
+        else:
+            self.delete_internal_node(x, i)
+        
+
+    def delete_leaf_node(self, x: Node, i: int):
         '''
         # delete the key in a leaf node
+        # Case 1: The key is originally in a leaf node
         '''
-        # (TODO)
-        # Write your own code here
 
-    def delete_internal_node(self, x, i):
+        assert i < len(x.keys), "The index is out of range."
+        assert len(x.keys) >= self.t-1, "The number of keys is less than t-1."
+
+        # Case 1-1: x.n >= t
+        if len(x.keys) >= self.t:
+            # x: [ A B C D E ] -> [ A B D E ]
+            x.keys.pop(i)
+
+        # Case 1-2: x.n == t-1. We can't delete the key from x!
+        else:
+            # Case 1-2a: borrow from left/right sibling
+
+
+            # Case 1-2b: borrow from parent and merge with sibling
+            # internal work:
+                # recursively check parent's state
+                # if the parent is the root and has no child node,
+                # set the merged node as the new root
+                # and decrease the height of the B-tree
+            pass
+        
+
+    def delete_internal_node(self, x: Node, i: int):
         '''
         # delete the key in an internal node
         '''
-        # (TODO)
-        # Write your own code here
+        # 1. find the predecessor of the key
+
+
+        # 2. replace the key with the predecessor
+
+
+        # 3. delete the predecessor from the leaf node
+
 
 
     # implement whatever you need
@@ -144,12 +238,27 @@ class BTree:
     #  def merge_sibling(self, x, i, j):
         #  pass
 
-    #  def borrow_sibling(self, x, i, j):
-        #  pass
+    def borrow_sibling(self, x: Node):
+        '''
+        # borrow a key from the sibling of the node x
+        '''
+        parent = x.parent[0]
+        i = x.parent[1]
+
+        # Case 1: borrow from the left sibling
+        if i > 0:
+            left_sibling = parent.children[i-1]
+            if len(left_sibling.keys) >= self.t:
+                # x: [ X Y Z ] -> [ W X Y Z ]
+                x.keys.insert(0, parent.keys[i-1])
+                parent.keys[i-1] = left_sibling.keys.pop()
+                return
+
+        
 
 
     # for printing the statistic of the resulting B-tree
-    def traverse_key(self, x, level=0, level_counts=None):
+    def traverse_key(self, x: Node, level: int=0, level_counts: dict[int, int]=None) -> dict[int, int]:
         '''
         # run BFS on the B-tree to count the number of keys at every level
         # return: level_counts
@@ -173,23 +282,23 @@ class BTree:
 # Btree Class done
 
 
-def get_file():
+def get_file() -> pd.DataFrame:
     '''
     # read an input file (.csv) with its name
     '''
-    file_name = (input("Enter the file name you want to insert or delete ▷ (e.g., insert1 or delete1_50 or delete1_90 or ...) "))
+    file_name = input("Enter the file name you want to insert or delete ▷ (e.g., insert1 or delete1_50 or delete1_90 or ...) ")
 
     while True:
         try:
-            file = pd.read_csv('inputs/'+file_name+'.csv',
+            file: pd.DataFrame = pd.read_csv('inputs/'+file_name+'.csv',
                                delimiter='\t', names=['key', 'value'])
             return file
         except FileNotFoundError:
             print("File does not exist.")
-            file_name = (input("Enter the file name again. ▷ "))
+            file_name = input("Enter the file name again. ▷ ")
 
 
-def insertion_test(B, file):
+def insertion_test(B: BTree, file: pd.DataFrame) -> BTree:
     '''
     #   read all keys and values from the file and insert them into the B-tree
     #   B   : an empty B-tree
@@ -197,8 +306,8 @@ def insertion_test(B, file):
     #   return: the resulting B-tree
     '''
 
-    file_key = file['key']
-    file_value = file['value']
+    file_key: pd.Series[int]     = file['key']
+    file_value: pd.Series[int]   = file['value']
 
     print('===============================')
     print('[ Insertion start ]')
@@ -213,7 +322,7 @@ def insertion_test(B, file):
     return B
 
 
-def deletion_test(B, root, delete_file):
+def deletion_test(B: BTree, delete_file: pd.DataFrame) -> BTree:
     '''
     #   read all keys and values from the file and delete them from the B-tree
     #   B   : the current B-tree
@@ -221,7 +330,7 @@ def deletion_test(B, root, delete_file):
     #   return: the resulting B-tree
     '''
 
-    delete_key = delete_file['key']
+    delete_key: pd.Series[int] = delete_file['key']
 
     print('===============================')
     print('[ Deletion start ]')
@@ -236,7 +345,7 @@ def deletion_test(B, root, delete_file):
     return B
 
 
-def print_statistic(B):
+def print_statistic(B: BTree):
     '''
     # print the information about the current B-tree
     # the number of keys at each level
@@ -259,6 +368,7 @@ def print_statistic(B):
     print('===============================')
     print()
 
+
 def main():
     while True:
         try:
@@ -267,14 +377,14 @@ def main():
             # 1. Insertion
             if num == 1:
                 t = 3 # minimum degree
-                B = BTree(2*t-1, t) # make an empty b-tree with the minimum degree t
+                B = BTree(t) # make an empty b-tree with the minimum degree t
 
-                insert_file = get_file()
+                insert_file: pd.DataFrame = get_file()
                 B = insertion_test(B, insert_file)
 
             # 2. Deletion
             elif num == 2:
-                delete_file = get_file()
+                delete_file: pd.DataFrame = get_file()
                 B = deletion_test(B, delete_file)
 
             # 3. Statistic
