@@ -90,6 +90,7 @@ class BTree:
             s: Node = Node(False)
             self.root = s
             s.children = [r]
+            r.parent = [s, 0]
 
             # Split the old root
             self.split_child(s, 0)
@@ -182,6 +183,9 @@ class BTree:
         else:
             self.delete_internal_node(x, i)
         
+        # If root becomes empty and it has a child, reduce tree height
+        if len(self.root.keys) == 0 and not self.root.leaf:
+            self.root = self.root.children[0]
 
     def delete_leaf_node(self, x: Node, i: int):
         '''
@@ -199,6 +203,7 @@ class BTree:
 
         # Case 1-2: x.n == t-1. We can't delete the key from x!
         else:
+            borrow_merge(x, i)
             # Case 1-2a: borrow from left/right sibling
 
 
@@ -208,14 +213,13 @@ class BTree:
                 # if the parent is the root and has no child node,
                 # set the merged node as the new root
                 # and decrease the height of the B-tree
-            pass
         
-
     def delete_internal_node(self, x: Node, i: int):
         '''
         # delete the key in an internal node
         '''
-        # 1. find the predecessor of the key
+
+                # 1. find the predecessor of the key
 
 
         # 2. replace the key with the predecessor
@@ -224,62 +228,6 @@ class BTree:
         # 3. delete the predecessor from the leaf node
 
 
-
-    # implement whatever you need
-    #  def borrow_merge(self, x, j):
-        #  pass
-
-    #  def check_smaller_than_t(self, x):
-        #  pass
-
-    #  def find_predecessor(self, x):
-        #  pass
-
-    #  def merge_sibling(self, x, i, j):
-        #  pass
-
-    def borrow_sibling(self, x, i, j):
-        pass
-        
-
-
-        """
-    def delete(self, k: int) -> None:
-        '''
-        # delete the key k from the B-tree
-        # return: None
-        '''
-        x, i = self.search_key(self.root, k)
-        if x is None:
-            print(f"The key {k} is not in the B-tree.")
-            return
-
-        if x.leaf:
-            self.delete_leaf_node(x, i)
-        else:
-            self.delete_internal_node(x, i)
-        
-        # If root becomes empty and it has a child, reduce tree height
-        if len(self.root.keys) == 0 and not self.root.leaf:
-            self.root = self.root.children[0]
-
-    def delete_leaf_node(self, x: Node, i: int):
-        '''
-        # delete the key in a leaf node
-        # Case 1: The key is originally in a leaf node
-        '''
-        if len(x.keys) >= self.t:
-            # Case 1-1: Simply delete the key
-            x.keys.pop(i)
-        else:
-            # Case 1-2: x has less than t keys after deletion
-            # Try to borrow from sibling or merge
-            self.borrow_merge(x, i)
-            
-    def delete_internal_node(self, x: Node, i: int):
-        '''
-        # delete the key in an internal node
-        '''
         k = x.keys[i]
 
         # Predecessor case
@@ -300,6 +248,8 @@ class BTree:
         else:
             self.merge_sibling(x, i)
             self.delete(k)
+
+  
 
     def find_predecessor(self, x: Node, i: int):
         '''
@@ -376,7 +326,7 @@ class BTree:
             parent.keys[i] = sibling.keys.pop(0)
             if not sibling.leaf:
                 x.children.append(sibling.children.pop(0))
-        """
+
 
 
     # for printing the statistic of the resulting B-tree
