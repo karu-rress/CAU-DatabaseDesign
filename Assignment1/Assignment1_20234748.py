@@ -17,6 +17,8 @@ THIS IS A HARD-LINK FILE!!!
 
 # importing libraries
 import math, sys
+import traceback
+
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -50,28 +52,27 @@ class BTree:
         # return: None
         """
 
-        z: Node = Node()  # create a new node z
         y: Node = x.children[i]  # y is the i-th child of x
-        z.leaf = y.leaf  # y is a leaf => z if a leaf
+        z: Node = Node(leaf=y.leaf)  # create a new node z
+        # x: [.N｡W.] -> [.N｡∅｡W.]
+        x.children.insert(i + 1, z)  # insert z as a child of x
+        z.parent = x
+
+        # x: [.N｡∅｡W.] -> [.N｡S｡W.]
+        x.keys.insert(i, y.keys[self.t - 1])  # insert the middle key of y to x
 
         # z: [] -> [ T U V ]
         z.keys = y.keys[self.t:]  # move the right keys from y to z
-
-        # z: [ T U V ] -> [.T.U.V.]
-        z.children = [] if y.leaf else y.children[self.t:]
-        z.parent = y.parent
-
         # y: [.P.Q.R.S.T.U.V.] -> [.P.Q.R.]
-        # middle: S
-        middle = y.keys[self.t - 1]  # the middle key of y
         y.keys = y.keys[:self.t - 1]  # keep the left keys in y
-        y.children = [] if y.leaf else y.children[:self.t]
 
-        # x: [.N｡W.] -> [.N｡∅｡W.]
-        x.children.insert(i + 1, z)  # insert z as a child of x
+        if not y.leaf:
+            # z: [ T U V ] -> [.T.U.V.]
+            z.children = y.children[self.t:]
+            y.children = y.children[:self.t]
+            for child in z.children:
+                child.parent = z
 
-        # x: [.N｡∅｡W.] -> [.N｡S｡W.]
-        x.keys.insert(i, middle)  # insert the middle key of y to x
 
     # B-Tree-Insert
     def insert(self, k: list[int]) -> None:
@@ -80,24 +81,19 @@ class BTree:
         # return: None
         """
 
-        r: Node = self.root
-
         # Case 1: if the root is full
         # r: [.A.B.C.D.E.] when t = 3
-        if len(r.keys) == (2 * self.t) - 1:
-            # Create new root
-            s: Node = Node(False)
-            self.root = s
-            s.children = [r]
-            r.parent = s
-
-            # Split the old root
-            self.split_child(s, 0)
-            self.insert_key(s, k)
+        if len(self.root.keys) == (2 * self.t) - 1:
+            new_root: Node = Node(leaf=False)            # Create new root
+            new_root.children.append(self.root)
+            self.root.parent = new_root
+            self.split_child(new_root, 0)              # Split the old root
+            self.root = new_root
+            self.insert_key(new_root, k)
 
         # Case 2: if the root is not full
         else:
-            self.insert_key(r, k)
+            self.insert_key(self.root, k)
 
     # B-Tree-Insert-Nonfull: "Only called when non-full"
     def insert_key(self, x: Node, k: list[int]) -> None:
@@ -177,14 +173,16 @@ class BTree:
             else:
                 self.delete_internal_node(x, i)
 
-        except IndexError:
+        except IndexError: # 이거는 충분히 수정 가능할 것 같은데...
+            traceback.print_exc()
             print(f"인덱스 오류! '{k}': x={x.keys}, i={i}")
+            # exit(1)
         except ValueError:
-            print(f"찾는 값이 없음! '{k}': x={x.keys}, i={i}")
+            pass
+            # print(f"찾는 값이 없음! '{k}': x={x.keys}, search={self.search_key(self.root, k)}")
         except Exception as e:
             print(f"Couldn't remove key '{k}': x={x.keys}, i={i}")
             print(f"Error: {e}")
-
 
     def delete_leaf_node(self, x: Node, i: int) -> None:
         """
@@ -210,7 +208,13 @@ class BTree:
         # 1. find the predecessor of the node
         # x: [.30.33.], pred_node: [ 31 32 ], pred_idx: 1
         pred_node, pred_idx = self.find_predecessor(x, i)
-        pred_key = pred_node.keys[pred_idx]
+        try:
+            pred_key = pred_node.keys[pred_idx]
+        except:
+            print(f"Error: pred_node: {pred_node.keys}, pred_idx: {pred_idx}")
+            print(f"Error: x: {x.keys}, i: {i}")
+            raise
+
 
         # 2. replace the key with the predecessor
         # x: [.30.32.], pred_key: 33
@@ -461,7 +465,7 @@ def main():
             # 4. End program
             elif num == 4:
                 sys.exit(1)
-
+                """
             ## FOR DEBUG
             elif num == 5:
                 node1 = Node(True); node1.keys = [[5, 5]]
@@ -490,7 +494,7 @@ def main():
 
                 B = BTree(2)
                 B.root = node12
-
+                """
             else:
                 print("Invalid input. Please enter 1, 2, 3, or 4.")
 
