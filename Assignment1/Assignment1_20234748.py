@@ -1,10 +1,9 @@
 """
 #
-THIS IS A HARD-LINK FILE!!!
 # Database Design
 #
-# Assignment 1: B-Tree
-# 20234748 나선우
+# Assignment 1: B-Tree Implementation
+#   20234748 나선우
 #
 # Comments:
 #   [] stands for a node
@@ -16,11 +15,8 @@ THIS IS A HARD-LINK FILE!!!
 """
 
 # importing libraries
-import math, sys
-import traceback
-
+import sys
 import pandas as pd
-import numpy as np
 from tqdm import tqdm
 
 # B-Tree Node Class
@@ -36,9 +32,9 @@ class Node:
 class BTree:
     def __init__(self, t: int) -> None:
         """
-        # create an instance of the Class of a B-Tree
-        # t : the minimum degree t
-        # (the max num of keys is 2*t -1, the min num of keys is t-1)
+        create an instance of the Class of a B-Tree
+        t : the minimum degree t
+        (the max num of keys is 2*t -1, the min num of keys is t-1)
         """
         self.root: Node = Node(True)
         self.t: int = t
@@ -54,6 +50,7 @@ class BTree:
 
         y: Node = x.children[i]  # y is the i-th child of x
         z: Node = Node(leaf=y.leaf)  # create a new node z
+
         # x: [.N｡W.] -> [.N｡∅｡W.]
         x.children.insert(i + 1, z)  # insert z as a child of x
         z.parent = x
@@ -174,7 +171,6 @@ class BTree:
                 self.delete_internal_node(x, i)
 
         except IndexError: # 이거는 충분히 수정 가능할 것 같은데...
-            traceback.print_exc()
             print(f"인덱스 오류! '{k}': x={x.keys}, i={i}")
             # exit(1)
         except ValueError:
