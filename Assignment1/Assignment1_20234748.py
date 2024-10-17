@@ -15,7 +15,6 @@
 """
 
 # importing libraries
-import sys
 import pandas as pd
 from tqdm import tqdm
 import bisect
@@ -53,25 +52,19 @@ class BTree:
         y: Node = x.children[i]  # y is the i-th child of x
         z: Node = Node(leaf=y.leaf)  # create a new node z
 
-        # z: [] -> [ T U V ]
-        z.keys = y.keys[self.t:]  # move the right keys from y to z
+        z.keys = y.keys[self.t:] # z: [] -> [ T U V ] move right keys from y to z
 
         if not y.leaf:
-            # z: [ T U V ] -> [.T.U.V.]
-            z.children = y.children[self.t:]
+            z.children = y.children[self.t:] # z: [ T U V ] -> [.T.U.V.]
             y.children = y.children[:self.t]
             for child in z.children:
                 child.parent = z
                 
-        # x: [.N｡W.] -> [.N｡∅｡W.]
-        x.children.insert(i + 1, z)  # insert z as a child of x
+        x.children.insert(i + 1, z) # x: [.N｡W.] -> [.N｡∅｡W.] insert z as a child of x
         z.parent = x
 
-        # x: [.N｡∅｡W.] -> [.N｡S｡W.]
-        x.keys.insert(i, y.keys[self.t - 1])  # insert the middle key of y to x
-
-        # y: [.P.Q.R.S.T.U.V.] -> [.P.Q.R.]
-        y.keys = y.keys[:self.t - 1]  # keep the left keys in y
+        x.keys.insert(i, y.keys[self.t - 1]) # x: [.N｡∅｡W.] -> [.N｡S｡W.] insert middle of y to x
+        y.keys = y.keys[:self.t - 1] # y: [.P.Q.R.S.T.U.V.] -> [.P.Q.R.] keep left keys
 
 
     # B-Tree-Insert: insert the key k into the B-Tree
@@ -135,13 +128,8 @@ class BTree:
         """
         x, i = 0, 0
         try:
-
-
             # Search for the key
-            r = self.search_key(self.root, k)
-            if r is None:
-                return
-            x, i = r
+            x, i = self.search_key(self.root, k)
 
             # Case 1: The key is originally in a leaf node
             if x.leaf:
@@ -151,23 +139,17 @@ class BTree:
             else:
                 self.delete_internal_node(x, i)
 
-            if len(self.root.keys) == 0:
-                if self.root.leaf:
-                    self.root = None
-                else:
-                    self.root = self.root.children[0]
-
-
-
-        except IndexError: # 이거는 충분히 수정 가능할 것 같은데...
+        except IndexError:
             # print(f"인덱스 오류! '{k}': x={x.keys}, i={i}")
             # exit(1)
+            pass
+        except TypeError:
             pass
         except ValueError:
             # print(f"찾는 값이 없음! '{k}': x={x.keys}, search={self.search_key(self.root, k)}")
             pass
         except Exception as e:
-            print(f"Couldn't remove key '{k}': x={x.keys}, i={i}")
+            print(f"Couldn't remove key '{k}': x={x}, i={i}")
             print(f"Error: {e}")
 
     def delete_leaf_node(self, x: Node, i: int) -> None:
@@ -178,10 +160,12 @@ class BTree:
 
         # Case 1-1: x.n >= t, just delete the key
         # x: [ A B C D E ] -> [ A B D E ]
-        x.keys.pop(i)
+        if len(x.keys) >= self.t:
+            x.keys.pop(i)
 
         # Case 1-2: x.n == t-1. We can't just delete the key from x!
-        if len(x.keys) == self.t - 1:
+        elif len(x.keys) == self.t - 1:
+            x.keys.pop(i)
             self.borrow_merge(x)
 
     def delete_internal_node(self, x: Node, i: int) -> None:
@@ -191,34 +175,27 @@ class BTree:
         # Trick: Transform this case into Case 1
         """
 
-        # 1. find the predecessor of the node
-        # x: [.30.33.], pred_node: [ 31 32 ], pred_idx: 1
-        pred_node, pred_idx = self.find_predecessor(x, i)
-        try:
-            pred_key = pred_node.keys[pred_idx]
-        except:
-            print(f"Error: pred_node: {pred_node.keys}, pred_idx: {pred_idx}")
-            print(f"Error: x: {x.keys}, i: {i}")
-            raise
+        # 1. find the successor
+        # if len(x.children[i + 1].keys) >= self.t:
+        succ_node, succ_idx = self.find_successor(x, i)
+        succ_key = succ_node.keys[succ_idx]
 
+        # 2. replace the key with the successor
+        x.keys[i], succ_node.keys[succ_idx] = succ_key, x.keys[i]
 
-        # 2. replace the key with the predecessor
-        # x: [.30.32.], pred_key: 33
-        x.keys[i], pred_key = pred_key, x.keys[i]
-
-        # 3. delete the predecessor and check Case 1
-        self.delete_leaf_node(pred_node, pred_idx)
+        # 3. delete the successor and check Case 1
+        self.delete_leaf_node(succ_node, succ_idx)
 
     @staticmethod
-    def find_predecessor(x: Node, i: int) -> tuple[Node, int]:
+    def find_successor(x: Node, i: int) -> tuple[Node, int]:
         """
-        # Find the predecessor of the key at index i in node x
-        # Find the rightmost key in the left!
+        # Find the successor of the key at index i in node x
+        # Find the leftmost key in the right!
         """
-        node = x.children[i]
+        node = x.children[i + 1]
         while not node.leaf:
-            node = node.children[-1]        # go to rightmost
-        return node, len(node.keys) - 1
+            node = node.children[0]        # go to leftmost
+        return node, 0
 
     @staticmethod
     def merge_sibling(x: Node, i: int) -> None:
@@ -273,10 +250,10 @@ class BTree:
 
             # After deleting the key, parent node's key count is reduced
             # So, we need to check the parent node again
-            if len(parent.keys) < self.t - 1:
+            if len(parent.keys) < self.t - 1 and parent != self.root:
                 self.borrow_merge(parent)
 
-            # However, if the parent is the root and has no child node,
+            # However, if the parent is the root and has no key,
             # (1) set the merged node as the new root
             # (2) decrease the height of the B-tree
             if parent == self.root and len(parent.keys) == 0:
@@ -373,8 +350,7 @@ def insertion_test(B: BTree, file: pd.DataFrame) -> BTree:
         B.insert([file_key[i], file_value[i]])
 
     print('[ Insertion complete ]')
-    print('===============================')
-    print()
+    print('===============================\n')
 
     return B
 
@@ -396,8 +372,7 @@ def deletion_test(B: BTree, delete_file: pd.DataFrame) -> BTree:
         B.delete(delete_key[i])
 
     print('[ Deletion complete ]')
-    print('===============================')
-    print()
+    print('===============================\n')
 
     return B
 
@@ -422,8 +397,7 @@ def print_statistic(B: BTree):
     total_keys = sum(counts for counts in level_counts.values())
     print(f'Total number of keys across all levels: {total_keys}')
     print('[ Print complete ]')
-    print('===============================')
-    print()
+    print('===============================\n')
 
 
 def main():
@@ -450,44 +424,7 @@ def main():
 
             # 4. End program
             elif num == 4:
-                sys.exit(1)
-                """
-            ## FOR DEBUG
-            elif num == 5:
-                node1 = Node(True); node1.keys = [[5, 5]]
-                node2 = Node(True); node2.keys = [[15, 15]]
-                node3 = Node(False); node3.keys = [[10, 10]]
-                node3.children = [node1, node2]
-                node1.parent = node2.parent = node3
-
-                node4 = Node(True); node4.keys = [[25, 25], [28, 28]]
-                node5 = Node(True); node5.keys = [[31, 31], [32, 32]]
-                node6 = Node(True); node6.keys = [[35, 35]]
-                node7 = Node(False); node7.keys = [[30, 30], [33, 33]]
-                node7.children = [node4, node5, node6]
-                node4.parent = node5.parent = node6.parent = node7
-
-                node8 = Node(True); node8.keys = [[45, 45]]
-                node9 = Node(True); node9.keys = [[55, 55]]
-                node10 = Node(True); node10.keys = [[65, 65]]
-                node11 = Node(False); node11.keys = [[50, 50], [60, 60]]
-                node11.children = [node8, node9, node10]
-                node8.parent = node9.parent = node10.parent = node11
-
-                node12 = Node(False); node12.keys = [[20, 20], [40, 40]]
-                node12.children = [node3, node7, node11]
-                node3.parent = node7.parent = node11.parent = node12
-
-                B = BTree(2)
-                B.root = node12
-                """
-            elif num == 6:
-                B = BTree(3)
-
-                for i in range(1, 11):
-                    B.insert([i, i])
-                    print_statistic(B)
-
+                return
 
             else:
                 print("Invalid input. Please enter 1, 2, 3, or 4.")
@@ -499,3 +436,158 @@ def main():
 if __name__ == '__main__':
     main()
 
+
+#############
+#############
+#############
+#############
+### ONLY FOR THE UNIT TEST
+#############
+#############
+#############
+#############
+
+#################### UNIT_TEST_1 ####################
+
+"""
+def print_tree(B):
+    level_counts = B.traverse_key(B.root)
+    for level, counts in level_counts.items():
+        if level == 0:
+            print(f'Level {level} (root): Key Count = {counts}')
+        else:
+            print(f'Level {level}: Key Count = {counts}')
+
+    total_keys = sum(counts for counts in level_counts.values())
+
+    print(f'\nRoot keys: {B.root.keys}\n')
+
+    print(f'Level 1: {B.root.children[0].keys} | {B.root.children[1].keys} | {B.root.children[2].keys}\n')
+
+    print(f'Children of first: {B.root.children[0].children[0].keys} | {B.root.children[0].children[1].keys}')
+    print(f'Children of second: {B.root.children[1].children[0].keys} | {B.root.children[1].children[1].keys}', end='')
+    
+    if len(B.root.children[1].children) > 2:
+        print(f' | {B.root.children[1].children[2].keys}')
+    print(f'Children of third: {B.root.children[2].children[0].keys} | {B.root.children[2].children[1].keys} | {B.root.children[2].children[2].keys}\n')
+
+
+node1 = Node(True); node1.keys = [[5, 5]]; node2 = Node(True); node2.keys = [[15, 15]]; node3 = Node(False); node3.keys = [[10, 10]]
+node3.children = [node1, node2]; node1.parent = node2.parent = node3
+node4 = Node(True); node4.keys = [[25, 25], [28, 28]]; node5 = Node(True); node5.keys = [[31, 31], [32, 32]]
+node6 = Node(True); node6.keys = [[35, 35]]; node7 = Node(False); node7.keys = [[30, 30], [33, 33]]
+node7.children = [node4, node5, node6]; node4.parent = node5.parent = node6.parent = node7
+node8 = Node(True); node8.keys = [[45, 45]]; node9 = Node(True); node9.keys = [[55, 55]]
+node10 = Node(True); node10.keys = [[65, 65]]; node11 = Node(False); node11.keys = [[50, 50], [60, 60]]
+node11.children = [node8, node9, node10]; node8.parent = node9.parent = node10.parent = node11
+node12 = Node(False); node12.keys = [[20, 20], [40, 40]]
+node12.children = [node3, node7, node11]; node3.parent = node7.parent = node11.parent = node12
+B = BTree(2)
+B.root = node12
+
+
+x, i = B.search_key(B.root, 32) # just deleting
+B.delete_leaf_node(x, i)
+print_tree(B)
+
+print('=======================\n')
+
+x, i = B.search_key(B.root, 31) # merge with sibling
+B.delete_leaf_node(x, i)
+print_tree(B)
+
+print('=======================\n')
+
+x, i = B.search_key(B.root, 30) # merge through parent
+B.delete_leaf_node(x, i)
+print_tree(B)
+"""
+
+#################### UNIT_TEST_2 ####################
+
+"""
+def print_tree(B):
+    level_counts = B.traverse_key(B.root)
+    for level, counts in level_counts.items():
+        if level == 0:
+            print(f'Level {level} (root): Key Count = {counts}')
+        else:
+            print(f'Level {level}: Key Count = {counts}')
+
+    total_keys = sum(counts for counts in level_counts.values())
+
+    print(f'\nRoot keys: {B.root.keys}\n')
+
+    print(f'Level 1: {B.root.children[0].keys} | {B.root.children[1].keys} | {B.root.children[2].keys}\n')
+
+    print(f'Children of first: {B.root.children[0].children[0].keys} | {B.root.children[0].children[1].keys}')
+    print(f'Children of second: {B.root.children[1].children[0].keys} | {B.root.children[1].children[1].keys}')
+    if len(B.root.children[1].children) > 2:
+        print(f'| {B.root.children[1].children[2].keys}')
+    else:
+        print()
+    print(f'Children of third: {B.root.children[2].children[0].keys} | {B.root.children[2].children[1].keys} | {B.root.children[2].children[2].keys}\n')
+
+
+node1 = Node(True); node1.keys = [[5, 5]]; node2 = Node(True); node2.keys = [[15, 15]]; node3 = Node(False); node3.keys = [[10, 10]]
+node3.children = [node1, node2]; node1.parent = node2.parent = node3
+node4 = Node(True); node4.keys = [[25, 25], [28, 28]]; node5 = Node(True); node5.keys = [[31, 31], [32, 32]]
+node6 = Node(True); node6.keys = [[35, 35]]; node7 = Node(False); node7.keys = [[30, 30], [33, 33]]
+node7.children = [node4, node5, node6]; node4.parent = node5.parent = node6.parent = node7
+node8 = Node(True); node8.keys = [[45, 45]]; node9 = Node(True); node9.keys = [[55, 55]]
+node10 = Node(True); node10.keys = [[65, 65]]; node11 = Node(False); node11.keys = [[50, 50], [60, 60]]
+node11.children = [node8, node9, node10]; node8.parent = node9.parent = node10.parent = node11
+node12 = Node(False); node12.keys = [[20, 20], [40, 40]]
+node12.children = [node3, node7, node11]; node3.parent = node7.parent = node11.parent = node12
+B = BTree(2)
+B.root = node12
+
+
+x, i = B.search_key(B.root, 28)
+B.delete_leaf_node(x, i)
+print_tree(B)
+
+print('='*50, end='\n\n')
+
+x, i = B.search_key(B.root, 33)
+B.delete_internal_node(x, i)
+print_tree(B)
+
+print('='*50, end='\n\n')
+
+x, i = B.search_key(B.root, 30)
+B.delete_internal_node(x, i)
+print_tree(B)
+"""
+
+#################### UNIT_TEST_3 ####################
+
+"""
+node1 = Node(True); node1.keys = [[5, 5]]; node2 = Node(True); node2.keys = [[15, 15]]
+node3 = Node(True); node3.keys = [[30, 30]]; node4 = Node(True); node4.keys = [[70, 70]]
+node5 = Node(False); node5.keys = [[10, 10]]; node5.children = [node1, node2]; node1.parent = node2.parent = node5
+node6 = Node(False); node6.keys = [[35, 35]]; node6.children = [node3, node4]; node3.parent = node4.parent = node6
+node7 = Node(False); node7.keys = [[20, 20]]; node7.children = [node5, node6]; node5.parent = node6.parent = node7
+
+B = BTree(2)
+B.root = node7
+
+print_tree(B)
+
+print('='*50, end='\n\n')
+
+x, i = B.search_key(B.root, 10)
+B.delete_internal_node(x, i)
+
+level_counts = B.traverse_key(B.root)
+for level, counts in level_counts.items():
+    if level == 0:
+        print(f'Level {level} (root): Key Count = {counts}')
+    else:
+        print(f'Level {level}: Key Count = {counts}')
+
+total_keys = sum(counts for counts in level_counts.values())
+
+print(f'\nRoot keys: {B.root.keys}\n')
+print(f'Level 1: {B.root.children[0].keys} | {B.root.children[1].keys} | {B.root.children[2].keys}\n')
+"""

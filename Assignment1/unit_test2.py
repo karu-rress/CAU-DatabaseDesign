@@ -113,7 +113,7 @@ class BTree:
 
             # After deleting the key, parent node's key count is reduced
             # So, we need to check the parent node again
-            if len(parent.keys) < self.t - 1:
+            if len(parent.keys) < self.t - 1 and parent != self.root:
                 self.borrow_merge(parent)
 
             # However, if the parent is the root and has no child node,
@@ -151,6 +151,41 @@ class BTree:
             if not sibling.leaf:
                 x.children.append(sibling.children.pop(0))
 
+    def delete_internal_node(self, x: Node, i: int) -> None:
+        """
+        # delete the key in an internal node
+        # Case 2: The key is originally in an internal node
+        # Trick: Transform this case into Case 1
+        """
+
+        # 1. find the predecessor of the node
+        # x: [.30.33.], pred_node: [ 31 32 ], pred_idx: 1
+        pred_node, pred_idx = self.find_successor(x, i)
+        try:
+            pred_key = pred_node.keys[pred_idx]
+        except:
+            print(f"Error: pred_node: {pred_node.keys}, pred_idx: {pred_idx}")
+            print(f"Error: x: {x.keys}, i: {i}")
+            raise
+
+        # 2. replace the key with the predecessor
+        # x: [.30.32.], pred_key: 33
+        x.keys[i], pred_node.keys[pred_idx] = pred_key, x.keys[i]
+
+        # 3. delete the predecessor and check Case 1
+        self.delete_leaf_node(pred_node, pred_idx)
+
+    @staticmethod
+    def find_successor(x: Node, i: int) -> tuple[Node, int]:
+        """
+        # Find the successor of the key at index i in node x
+        # Find the leftmost key in the right!
+        """
+        node = x.children[i + 1]
+        while not node.leaf:
+            node = node.children[0]        # go to leftmost
+        return node, 0
+
 def print_tree(B):
     level_counts = B.traverse_key(B.root)
     for level, counts in level_counts.items():
@@ -166,10 +201,9 @@ def print_tree(B):
     print(f'Level 1: {B.root.children[0].keys} | {B.root.children[1].keys} | {B.root.children[2].keys}\n')
 
     print(f'Children of first: {B.root.children[0].children[0].keys} | {B.root.children[0].children[1].keys}')
-    print(f'Children of second: {B.root.children[1].children[0].keys} | {B.root.children[1].children[1].keys}', end='')
-    
+    print(f'Children of second: {B.root.children[1].children[0].keys} | {B.root.children[1].children[1].keys}', end=' ')
     if len(B.root.children[1].children) > 2:
-        print(f' | {B.root.children[1].children[2].keys}')
+        print(f'| {B.root.children[1].children[2].keys}')
     else:
         print()
     print(f'Children of third: {B.root.children[2].children[0].keys} | {B.root.children[2].children[1].keys} | {B.root.children[2].children[2].keys}\n')
@@ -189,18 +223,18 @@ B = BTree(2)
 B.root = node12
 
 
-x, i = B.search_key(B.root, 32) # just deleting
+x, i = B.search_key(B.root, 28)
 B.delete_leaf_node(x, i)
 print_tree(B)
 
-print('=======================\n')
+print('='*50, end='\n\n')
 
-x, i = B.search_key(B.root, 31) # merge with sibling
-B.delete_leaf_node(x, i)
+x, i = B.search_key(B.root, 33)
+B.delete_internal_node(x, i)
 print_tree(B)
 
-print('=======================\n')
+print('='*50, end='\n\n')
 
-x, i = B.search_key(B.root, 30) # merge through parent
-B.delete_leaf_node(x, i)
+x, i = B.search_key(B.root, 30)
+B.delete_internal_node(x, i)
 print_tree(B)
