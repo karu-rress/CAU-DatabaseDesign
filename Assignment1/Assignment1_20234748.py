@@ -135,6 +135,8 @@ class BTree:
         """
         x, i = 0, 0
         try:
+
+
             # Search for the key
             r = self.search_key(self.root, k)
             if r is None:
@@ -148,6 +150,14 @@ class BTree:
             # Case 2: The key is originally in an internal node
             else:
                 self.delete_internal_node(x, i)
+
+            if len(self.root.keys) == 0:
+                if self.root.leaf:
+                    self.root = None
+                else:
+                    self.root = self.root.children[0]
+
+
 
         except IndexError: # 이거는 충분히 수정 가능할 것 같은데...
             # print(f"인덱스 오류! '{k}': x={x.keys}, i={i}")
