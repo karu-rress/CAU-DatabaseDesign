@@ -18,6 +18,7 @@
 import sys
 import pandas as pd
 from tqdm import tqdm
+import bisect
 
 # B-Tree Node Class
 class Node:
@@ -33,35 +34,27 @@ class BTree:
     def __init__(self, t: int) -> None:
         """
         create an instance of the Class of a B-Tree
-        t : the minimum degree t
+        t : the minimum degree t (min-child)
         (the max num of keys is 2*t -1, the min num of keys is t-1)
         """
         self.root: Node = Node(True)
         self.t: int = t
 
+
     # B-Tree-Split-Child
     def split_child(self, x: Node, i: int) -> None:
         """
-        # split the node x's i-th child that is full
-        # x: the current node
-        # i: the index of the node x's child to be split
-        # return: None
+        split the node x's i-th child that is full
+        x: the current node
+        i: the index of the node x's child to be split (starting from 0)
         """
 
+        # z: [], y: [.P.Q.R.S.T.U.V.]
         y: Node = x.children[i]  # y is the i-th child of x
         z: Node = Node(leaf=y.leaf)  # create a new node z
 
-        # x: [.N｡W.] -> [.N｡∅｡W.]
-        x.children.insert(i + 1, z)  # insert z as a child of x
-        z.parent = x
-
-        # x: [.N｡∅｡W.] -> [.N｡S｡W.]
-        x.keys.insert(i, y.keys[self.t - 1])  # insert the middle key of y to x
-
         # z: [] -> [ T U V ]
         z.keys = y.keys[self.t:]  # move the right keys from y to z
-        # y: [.P.Q.R.S.T.U.V.] -> [.P.Q.R.]
-        y.keys = y.keys[:self.t - 1]  # keep the left keys in y
 
         if not y.leaf:
             # z: [ T U V ] -> [.T.U.V.]
@@ -69,56 +62,43 @@ class BTree:
             y.children = y.children[:self.t]
             for child in z.children:
                 child.parent = z
+                
+        # x: [.N｡W.] -> [.N｡∅｡W.]
+        x.children.insert(i + 1, z)  # insert z as a child of x
+        z.parent = x
+
+        # x: [.N｡∅｡W.] -> [.N｡S｡W.]
+        x.keys.insert(i, y.keys[self.t - 1])  # insert the middle key of y to x
+
+        # y: [.P.Q.R.S.T.U.V.] -> [.P.Q.R.]
+        y.keys = y.keys[:self.t - 1]  # keep the left keys in y
 
 
-    # B-Tree-Insert
+    # B-Tree-Insert: insert the key k into the B-Tree
     def insert(self, k: list[int]) -> None:
-        """
-        # insert the key k into the B-Tree
-        # return: None
-        """
-
-        # Case 1: if the root is full
+        # If the root is full, split
         # r: [.A.B.C.D.E.] when t = 3
         if len(self.root.keys) == (2 * self.t) - 1:
             new_root: Node = Node(leaf=False)            # Create new root
-            new_root.children.append(self.root)
+            new_root.children = [self.root]
             self.root.parent = new_root
             self.split_child(new_root, 0)              # Split the old root
             self.root = new_root
-            self.insert_key(new_root, k)
 
-        # Case 2: if the root is not full
-        else:
-            self.insert_key(self.root, k)
+        # After that (or the root is not full), insert the key
+        self.insert_key(self.root, k)
+
 
     # B-Tree-Insert-Nonfull: "Only called when non-full"
     def insert_key(self, x: Node, k: list[int]) -> None:
-        """
-        # insert the key k into node x
-        # return: None
-        """
-        i: int = len(x.keys) - 1
-
+        i = bisect.bisect_left(x.keys, k)
         # Case 1: if the node x is leaf (& non-full)
         if x.leaf:
-            # x: [ A B D ] -> [ A B D 0 ] (no child: leaf!)
-            x.keys.append([0, 0])
-
-            # x: [ A B D 0 ] -> [ A B D D ]
-            while i >= 0 and k < x.keys[i]:
-                x.keys[i + 1] = x.keys[i]
-                i -= 1
-
-            # x: [ A B D D ] -> [ A B C D ]
-            x.keys[i + 1] = k
+            # x: [ A B D ] -> [ A B C D ]
+            x.keys.insert(i, k)
 
         # Case 2: if the node x is an internal node
         else:
-            while i >= 0 and k < x.keys[i]:
-                i -= 1
-            i += 1
-
             if len(x.children[i].keys) == (2 * self.t) - 1:
                 self.split_child(x, i)
                 if k > x.keys[i]:
@@ -134,10 +114,9 @@ class BTree:
         # return: the node x that contains the key,
         #         the index of the key if the key is in the B-tree
         """
-        i: int = 0
 
-        while i < len(x.keys) and key > x.keys[i][0]:
-            i += 1
+        # Binary search
+        i = bisect.bisect_left([k[0] for k in x.keys], key)
 
         if i < len(x.keys) and key == x.keys[i][0]:
             return x, i
@@ -171,11 +150,12 @@ class BTree:
                 self.delete_internal_node(x, i)
 
         except IndexError: # 이거는 충분히 수정 가능할 것 같은데...
-            print(f"인덱스 오류! '{k}': x={x.keys}, i={i}")
+            # print(f"인덱스 오류! '{k}': x={x.keys}, i={i}")
             # exit(1)
-        except ValueError:
             pass
+        except ValueError:
             # print(f"찾는 값이 없음! '{k}': x={x.keys}, search={self.search_key(self.root, k)}")
+            pass
         except Exception as e:
             print(f"Couldn't remove key '{k}': x={x.keys}, i={i}")
             print(f"Error: {e}")
@@ -443,7 +423,7 @@ def main():
 
             # 1. Insertion
             if num == 1:
-                t = 2  # minimum degree   (TODO: need to 3)
+                t = 3
                 B = BTree(t)  # make an empty b-tree with the minimum degree t
 
                 insert_file: pd.DataFrame = get_file()
@@ -491,6 +471,14 @@ def main():
                 B = BTree(2)
                 B.root = node12
                 """
+            elif num == 6:
+                B = BTree(3)
+
+                for i in range(1, 11):
+                    B.insert([i, i])
+                    print_statistic(B)
+
+
             else:
                 print("Invalid input. Please enter 1, 2, 3, or 4.")
 
