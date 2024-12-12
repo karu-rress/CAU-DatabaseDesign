@@ -1,9 +1,13 @@
 import sqlite3
 import os
+import argparse
 
 def initialize():
     with sqlite3.connect('Assignment2.db') as db:
         cursor = db.cursor()
+
+        # Using INTEGER instead of INT for integer types
+        # as INTEGER supports autoincrement
 
         # USER Relation
         cursor.execute('''
@@ -112,7 +116,18 @@ def initialize():
         cursor.close()
 
 def new_user():
-    pass
+    print('<< Register New User >>', end='\n\n')
+
+    name = input('Name >> ')
+    email = input('Email >> ')
+    phone = input('Phone >> ')
+
+
+
+                user_id INTEGER PRIMARY KEY,
+            name VARCHAR(30) NOT NULL,
+            email VARCHAR(50) UNIQUE NOT NULL,
+            phone VARCHAR(15)
 
 def new_book():
     pass
@@ -129,7 +144,21 @@ def loan_book():
 def return_book():
     pass
 
+def DEBUG():
+    pass
+
 if __name__ == '__main__':
+    os.system('clear')
+
+    # if -n or --not-initialize is passed, skip the initialization
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--not-initialize', action='store_true')
+    args = parser.parse_args()
+
+    if not args.not_initialize:
+         
+
+
     initialize()
     print("Welcome to Sunwoo's Library!", end='\n\n')
 
@@ -141,7 +170,9 @@ if __name__ == '__main__':
         print('4. Delete Book')
         print('5. Loan Book')
         print('6. Return Book')
-        print('7. Exit', end='\n\n')
+        print('7. Exit')
+        print('0. DEBUG MODE')
+        print('=' * 50)
 
         choice = input('Your choice (1-7) >> ')
 
@@ -160,6 +191,8 @@ if __name__ == '__main__':
         elif choice == '7':
             print('Goodbye!')
             break
+        elif choice == '0':
+            DEBUG()
         else:
             print('Invalid choice. Please try again.', end='\n\n')
             continue
