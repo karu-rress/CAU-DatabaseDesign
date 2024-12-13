@@ -21,9 +21,9 @@ import sqlite3
 DB_NAME = 'Assignment2.db'
 
 # Global variable to store the current user
-# if None, then no user is logged in
-# otherwise, it stores the name of the user
-current_user = None
+#   if None, then no user is logged in
+#   otherwise, it stores the name of the user
+current_user: tuple[int, str, str] = None # (user_id, name, email)
 
 # Clears the screen
 def clear_screen():
@@ -47,7 +47,7 @@ def initialize():
             email VARCHAR(50) UNIQUE NOT NULL,
             phone VARCHAR(15)
         );''')
-        print('USER table created.')
+        print("Created table 'USER'.")
 
         # LIBRARIAN Relation
         cursor.execute('''DROP TABLE IF EXISTS LIBRARIAN;''')
@@ -58,7 +58,7 @@ def initialize():
             phone VARCHAR(15) NOT NULL,
             email VARCHAR(100) UNIQUE NOT NULL
         );''')
-        print('LIBRARIAN table created.')
+        print("Created table 'LIBRARIAN'.")
 
         # ROOM Relation
         cursor.execute('''DROP TABLE IF EXISTS ROOM;''')
@@ -67,7 +67,7 @@ def initialize():
             room_id INTEGER PRIMARY KEY AUTOINCREMENT,
             room_name VARCHAR(100) NOT NULL UNIQUE
         );''')
-        print('ROOM table created.')
+        print("Created table 'ROOM'.")
 
         # LIBRARIAN-ROOM Relation
         # Separated table because LIBRARIAN and ROOM have circular dependency
@@ -82,7 +82,7 @@ def initialize():
             FOREIGN KEY (room_id) REFERENCES ROOM(room_id)
                 ON DELETE CASCADE ON UPDATE CASCADE
         );''')
-        print('LIBRARIAN_ROOM table created.')
+        print("Created table 'LIBRARIAN_ROOM'.")
 
         # BOOKSHELF Relation
         # num_books must be between 0 and 500, and the default value is 0
@@ -97,7 +97,7 @@ def initialize():
             FOREIGN KEY (room_id) REFERENCES ROOM(room_id)
                 ON UPDATE CASCADE ON DELETE RESTRICT
         );''')
-        print('BOOKSHELF table created.')
+        print("Created table 'BOOKSHELF'.")
 
         # BOOK Relation
         # total_copies must be greater than 0
@@ -121,9 +121,10 @@ def initialize():
             FOREIGN KEY (bookshelf_id) REFERENCES BOOKSHELF(bookshelf_id)
                 ON UPDATE CASCADE ON DELETE RESTRICT
         );''')
-        print('BOOK table created.')
+        print("Created table 'BOOK'.")
 
         # BOOK_LOAN Relation
+        # CASCADE if user / book info is changed
         cursor.execute('''DROP TABLE IF EXISTS BOOK_LOAN;''')
         cursor.execute('''
         CREATE TABLE BOOK_LOAN (
@@ -132,11 +133,12 @@ def initialize():
             user_id INTEGER NOT NULL,
             loan_date DATE NOT NULL,
             return_date DATE,
-            FOREIGN KEY (book_id) REFERENCES BOOK(book_id),
+            FOREIGN KEY (book_id) REFERENCES BOOK(book_id)
+                ON UPDATE CASCADE ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES USER(user_id)
-                ON UPDATE CASCADE ON DELETE RESTRICT
+                ON UPDATE CASCADE ON DELETE CASCADE
         );''')
-        print('BOOK_LOAN table created.')
+        print("Created table 'BOOK_LOAN'.", end='\n\n')
 
         # ===================================================================
         #     Triggers
@@ -158,6 +160,7 @@ def initialize():
                 UPDATE BOOKSHELF SET num_books = num_books + NEW.total_copies
                 WHERE BOOKSHELF.bookshelf_id = NEW.bookshelf_id;
             END;''')
+        print("Created trigger 'book_added'.")
 
         # when book is deleted, decrease num_books
         cursor.execute('''
@@ -166,6 +169,7 @@ def initialize():
                 UPDATE BOOKSHELF SET num_books = num_books - OLD.total_copies
                 WHERE BOOKSHELF.bookshelf_id = OLD.bookshelf_id;
             END;''')
+        print("Created trigger 'book_deleted'.")
 
         # A user can only borrow up to 3 books at a time.
         # when book is loaned, decrease remaining_copies
@@ -181,18 +185,23 @@ def initialize():
                 UPDATE BOOKSHELF SET num_books = num_books - 1
                 WHERE bookshelf_id = (SELECT bookshelf_id FROM BOOK WHERE book_id = NEW.book_id);
             END;''')
+        print("Created trigger 'loan_book'.")
 
         # when book is returned, increase remaining_copies
+        # if return_date changes from NULL to NOT NULL,
+        # the book is returned.
         cursor.execute('''
         CREATE TRIGGER return_book
-            AFTER DELETE ON BOOK_LOAN FOR EACH ROW
+            AFTER UPDATE ON BOOK_LOAN FOR EACH ROW
+            WHEN OLD.return_date IS NULL AND NEW.return_date IS NOT NULL
             BEGIN
                 UPDATE BOOK SET remaining_copies = remaining_copies + 1
-                WHERE book_id = OLD.book_id;
+                WHERE book_id = NEW.book_id;
+
                 UPDATE BOOKSHELF SET num_books = num_books + 1
-                WHERE bookshelf_id = (SELECT bookshelf_id FROM BOOK WHERE book_id = OLD.book_id);
+                WHERE bookshelf_id = (SELECT bookshelf_id FROM BOOK WHERE book_id = NEW.book_id);
             END;''')
-        print('Triggers created.')
+        print("Created trigger 'return_book'.", end='\n\n')
 
 
         db.commit()
@@ -204,7 +213,7 @@ def initialize():
 def insert_sample_data():
     with sqlite3.connect(DB_NAME) as db:
         cursor = db.cursor()
-
+        # Enable foreign key constraint
         cursor.execute('PRAGMA foreign_keys = ON;')
 
         # USER
@@ -220,28 +229,28 @@ def insert_sample_data():
             ('Hannah', 'hannah@samsung.com', '010-8901-2345'),
             ('Ivy', 'ivy@korea.kr', '010-9012-3456');
         ''')
-        print('USER data inserted.')
+        print("Inserted data into 'USER'.")
 
         # LIBRARIAN
         cursor.execute('''
         INSERT INTO LIBRARIAN (name, phone, email) VALUES
             ('Sunwoo', '010-1234-5678', 'nsun527@cau.ac.kr'),
             ('Karu', '010-2345-6789', 'karu-rress@outlook.com');''')
-        print('LIBRARIAN data inserted.')
+        print("Inserted data into 'LIBRARIAN'.")
 
         # ROOM
         cursor.execute('''
         INSERT INTO ROOM (room_name) VALUES
             ('Adult Room'),
             ('Children Room');''')
-        print('ROOM data inserted.')
+        print("Inserted data into 'ROOM'.")
 
         # LIBRARIAN_ROOM
         cursor.execute('''
         INSERT INTO LIBRARIAN_ROOM (librarian_id, room_id) VALUES
             (1, 1),
             (2, 2);''')
-        print('LIBRARIAN_ROOM data inserted.')
+        print("Inserted data into 'LIBRARIAN_ROOM'.")
 
         # BOOKSHELF
         cursor.execute('''
@@ -250,7 +259,7 @@ def insert_sample_data():
             ('Mathematics', 2, 1),
             ('Cartoon', 3, 2),
             ('Fairy Tale', 1, 2);''')
-        print('BOOKSHELF data inserted.')
+        print("Inserted data into 'BOOKSHELF'.")
 
         # BOOK
         cursor.execute('''
@@ -258,16 +267,13 @@ def insert_sample_data():
             ('Introduction to Algorithms', 'Thomas H. Cormen', 'MIT Press', 'Computer Science', 3, 3, 1, 1),
             ('Programming Language Pragmatics', 'Michael L. Scott', 'Morgan Kaufmann', 'Computer Science', 3, 3, 1, 1),
             ('Computer Networking: A Top-Down Approach', 'James F. Kurose', 'Pearson', 'Computer Science', 3, 3, 1, 1),
-
             ('Discrete Mathematics and Its Applications', 'Kenneth H. Rosen', 'McGraw-Hill', 'Mathematics', 2, 2, 1, 2),
             ('Linear Algebra and Its Applications', 'David C. Lay', 'Pearson', 'Mathematics', 2, 2, 1, 2),
-
             ('One Piece', 'Eiichiro Oda', 'Shueisha', 'Cartoon', 5, 5, 2, 3),
             ('Naruto', 'Masashi Kishimoto', 'Shueisha', 'Cartoon', 5, 5, 2, 3),
             ('Attack on Titan', 'Hajime Isayama', 'Kodansha', 'Cartoon', 5, 5, 2, 3),
-
             ('Alice in Wonderland', 'Lewis Carroll', 'Macmillan', 'Fairy Tale', 4, 4, 2, 4);''')
-        print('BOOK data inserted.')
+        print("Inserted data into 'BOOK'.")
 
         # BOOK_LOAN
         cursor.execute('''
@@ -281,7 +287,7 @@ def insert_sample_data():
             (7, 7, '2024-10-07', NULL),
             (8, 8, '2024-10-08', NULL),
             (9, 9, '2024-10-09', NULL);''')
-        print('BOOK_LOAN data inserted.')
+        print("Inserted data into 'BOOK_LOAN'.", end='\n\n')
 
         db.commit()
         cursor.close()
@@ -290,13 +296,14 @@ def insert_sample_data():
 
 # Manages user
 def account(type: str):
+    # Read & write global variable
     global current_user
 
-    # if already logged in
+    # if already logged in => Manage Account menu
     if current_user is not None:
         print('<< Manage Account >>', end='\n\n')
 
-        print(f'Hello, {current_user}!')
+        print(f'Hello, {current_user[1]}!')
         print('1. Logout')
         print('2. Update Account')
         print('3. Delete Account')
@@ -308,7 +315,7 @@ def account(type: str):
         with sqlite3.connect(DB_NAME) as db:
             cursor = db.cursor()
             # Using placeholder to prevent SQL injection
-            cursor.execute(f'SELECT * FROM {type} WHERE name = ?;', (current_user,))
+            cursor.execute(f'SELECT * FROM {type} WHERE {'user_id' if type == 'USER' else 'librarian_id'} = ?;', (current_user[0],))
             user = cursor.fetchone()
             cursor.close()
 
@@ -327,6 +334,7 @@ def account(type: str):
 
             with sqlite3.connect(DB_NAME) as db:
                 cursor = db.cursor()
+                cursor.execute('PRAGMA foreign_keys = ON;')
                 # Update the user | librarian information
                 cursor.execute(f'''UPDATE {type} SET name = ?, email = ?, phone = ?
                                WHERE {'user_id' if type == 'USER' else 'librarian_id'} = ?;''',
@@ -340,7 +348,7 @@ def account(type: str):
             print('Account updated successfully.')
             print(f'Old: {user}')
             print(f'New: {new_user}')
-            current_user = name
+            current_user = (new_user[0], new_user[1], email)
 
         elif choice == '3':
             print('Delete Account')
@@ -377,8 +385,8 @@ def account(type: str):
 
     # 2. If registered, login
     if user:
-        current_user = user[1]
-        print(f'Welcome back, {current_user}!')
+        current_user = (user[0], user[1], email)
+        print(f'Welcome back, {current_user[1]}!')
         return
 
     # 3. If not registered, register
@@ -391,7 +399,7 @@ def account(type: str):
         try:
             cursor.execute(f'INSERT INTO {type} (name, email, phone) VALUES (?, ?, ?);', (name, email, phone))
             db.commit()
-            current_user = name
+            current_user = (cursor.lastrowid, name, email)
             print('Registered successfully.')
 
         except Exception as e:
@@ -399,77 +407,6 @@ def account(type: str):
 
         finally:
             cursor.close()
-
-# Manages book
-def book():
-    print('<< Manage Book >>', end='\n\n')
-    print('1. Add Book')
-    print('2. Update Book')
-    print('3. Delete Book')
-    print('0. Back to the main menu')
-    print('-' * 20)
-    choice = input('Your choice (0-3) >> ')
-
-    # Add boo
-    if choice == '1':
-        title = input('Title >> ')
-        author = input('Author >> ')
-        publisher = input('Publisher >> ')
-        category = input('Category >> ')
-        total_copies = int(input('Total Copies >> '))
-        remaining_copies = total_copies
-        librarian_id = int(input('Librarian ID >> '))
-        bookshelf_id = int(input('Bookshelf ID >> '))
-
-        with sqlite3.connect(DB_NAME) as db:
-            cursor = db.cursor()
-            cursor.execute('''
-            INSERT INTO BOOK (title, author, publisher, category, total_copies, remaining_copies, librarian_id, bookshelf_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);''',
-                (title, author, publisher, category, total_copies, remaining_copies, librarian_id, bookshelf_id))
-            db.commit()
-            cursor.close()
-        print('Book added successfully.')
-
-    # Update book
-    elif choice == '2':
-        book_id = int(input('Book ID >> '))
-        title = input('Title >> ')
-        author = input('Author >> ')
-        publisher = input('Publisher >> ')
-        category = input('Category >> ')
-        total_copies = int(input('Total Copies >> '))
-        remaining_copies = int(input('Remaining Copies >> '))
-        librarian_id = int(input('Librarian ID >> '))
-        bookshelf_id = int(input('Bookshelf ID >> '))
-
-        with sqlite3.connect(DB_NAME) as db:
-            cursor = db.cursor()
-            cursor.execute('''
-            UPDATE BOOK SET title = ?, author = ?, publisher = ?, category = ?, total_copies = ?, remaining_copies = ?, librarian_id = ?, bookshelf_id = ?
-            WHERE book_id = ?;''',
-                (title, author, publisher, category, total_copies, remaining_copies, librarian_id, bookshelf_id, book_id))
-            db.commit()
-            cursor.close()
-        print('Book updated successfully.')
-
-    # Delete book
-    elif choice == '3':
-        book_id = int(input('Book ID >> '))
-
-        with sqlite3.connect(DB_NAME) as db:
-            cursor = db.cursor()
-            cursor.execute('PRAGMA foreign_keys = ON;')
-            cursor.execute('DELETE FROM BOOK WHERE book_id = ?;', (book_id,))
-            db.commit()
-            cursor.close()
-        print('Book deleted successfully.')
-
-    elif choice == '0':
-        pass
-
-    else:
-        print('Invalid choice. Back to the main menu.', end='\n\n')
 
 # Manages room
 def room():
@@ -563,6 +500,7 @@ def bookshelf():
 
         with sqlite3.connect(DB_NAME) as db:
             cursor = db.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON;')
             cursor.execute('UPDATE BOOKSHELF SET category = ?, num_books = ?, room_id = ? WHERE bookshelf_id = ?;',
                 (category, num_books, room_id, bookshelf_id))
             db.commit()
@@ -588,6 +526,77 @@ def bookshelf():
     else:
         print('Invalid choice. Back to the main menu.', end='\n\n')
 
+# Manages book
+def book():
+    print('<< Manage Book >>', end='\n\n')
+    print('1. Add Book')
+    print('2. Update Book')
+    print('3. Delete Book')
+    print('0. Back to the main menu')
+    print('-' * 20)
+    choice = input('Your choice (0-3) >> ')
+
+    # Add book
+    if choice == '1':
+        title = input('Title >> ')
+        author = input('Author >> ')
+        publisher = input('Publisher >> ')
+        category = input('Category >> ')
+        total_copies = int(input('Total Copies >> '))
+        remaining_copies = total_copies
+        librarian_id = int(input('Librarian ID >> '))
+        bookshelf_id = int(input('Bookshelf ID >> '))
+
+        with sqlite3.connect(DB_NAME) as db:
+            cursor = db.cursor()
+            cursor.execute('''
+            INSERT INTO BOOK (title, author, publisher, category, total_copies, remaining_copies, librarian_id, bookshelf_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);''',
+                (title, author, publisher, category, total_copies, remaining_copies, librarian_id, bookshelf_id))
+            db.commit()
+            cursor.close()
+        print('Book added successfully.')
+
+    # Update book
+    elif choice == '2':
+        book_id = int(input('Book ID >> '))
+        title = input('Title >> ')
+        author = input('Author >> ')
+        publisher = input('Publisher >> ')
+        category = input('Category >> ')
+        total_copies = int(input('Total Copies >> '))
+        remaining_copies = int(input('Remaining Copies >> '))
+        librarian_id = int(input('Librarian ID >> '))
+        bookshelf_id = int(input('Bookshelf ID >> '))
+
+        with sqlite3.connect(DB_NAME) as db:
+            cursor = db.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON;')
+            cursor.execute('''
+            UPDATE BOOK SET title = ?, author = ?, publisher = ?, category = ?, total_copies = ?, remaining_copies = ?, librarian_id = ?, bookshelf_id = ?
+            WHERE book_id = ?;''',
+                (title, author, publisher, category, total_copies, remaining_copies, librarian_id, bookshelf_id, book_id))
+            db.commit()
+            cursor.close()
+        print('Book updated successfully.')
+
+    # Delete book
+    elif choice == '3':
+        book_id = int(input('Book ID >> '))
+
+        with sqlite3.connect(DB_NAME) as db:
+            cursor = db.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON;')
+            cursor.execute('DELETE FROM BOOK WHERE book_id = ?;', (book_id,))
+            db.commit()
+            cursor.close()
+        print('Book deleted successfully.')
+
+    elif choice == '0':
+        pass
+
+    else:
+        print('Invalid choice. Back to the main menu.', end='\n\n')
 
 def loan_return():
     print('<< Loan or Return Book >>', end='\n\n')
@@ -601,20 +610,27 @@ def loan_return():
 
     # Loan book
     if choice == '1':
+        if current_user is None:
+            print('Please login or register first.')
+            return
+
         book_id = int(input('Book ID >> '))
-        user_id = int(input('User ID >> '))
         # Of course, we can use datetime library to get the current date,
         # but as this is a management system, so we can manually input the date
         loan_date = input('Loan Date (YYYY-MM-DD) >> ')
 
         with sqlite3.connect(DB_NAME) as db:
             cursor = db.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON;')
             # NOTE: return_date is default NULL
             cursor.execute('INSERT INTO BOOK_LOAN (book_id, user_id, loan_date) VALUES (?, ?, ?);',
-                (book_id, user_id, loan_date))
+                (book_id, current_user[0], loan_date))
+            cursor.execute('SELECT * FROM BOOK_LOAN WHERE loan_id = ?;', (cursor.lastrowid,))
+            info = cursor.fetchone()
             db.commit()
             cursor.close()
         print('Book loaned successfully.')
+        print(f'Loan Information: {info}')
 
     # Return book
     elif choice == '2':
@@ -623,6 +639,7 @@ def loan_return():
 
         with sqlite3.connect(DB_NAME) as db:
             cursor = db.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON;')
             # NOTE: not deleting the row, just updating the return_date
             # so that we can keep the history of the loan
             cursor.execute('UPDATE BOOK_LOAN SET return_date = ? WHERE loan_id = ?;', (return_date, loan_id))
@@ -640,6 +657,7 @@ def loan_return():
 
         with sqlite3.connect(DB_NAME) as db:
             cursor = db.cursor()
+            cursor.execute('PRAGMA foreign_keys = ON;')
             cursor.execute('UPDATE BOOK_LOAN SET book_id = ?, user_id = ?, loan_date = ?, return_date = ? WHERE loan_id = ?;',
                 (book_id, user_id, loan_date, return_date, loan_id))
             db.commit()
@@ -652,11 +670,9 @@ def loan_return():
 
         with sqlite3.connect(DB_NAME) as db:
             cursor = db.cursor()
-            cursor.execute('''
-            SELECT loan_id, title, loan_date, return_date
-            FROM BOOK_LOAN
-            JOIN BOOK USING (book_id)
-            WHERE user_id = ?;''', (user_id,))
+            # Used inner join here
+            cursor.execute('''SELECT loan_id, title, loan_date, return_date
+                FROM BOOK_LOAN JOIN BOOK USING (book_id) WHERE user_id = ?;''', (user_id,))
             loan_info = cursor.fetchall()
             cursor.close()
 
@@ -672,26 +688,34 @@ def loan_return():
         print('Invalid choice. Back to the main menu.', end='\n\n')
 
 
-
 # Prints all the data in the database
 def DEBUG():
     def select_and_fetch(cursor: sqlite3.Cursor, table: str):
         cursor.execute(f'SELECT * FROM {table}')
         return cursor.fetchall()
 
-    tables = ['USER', 'LIBRARIAN', 'ROOM', 'BOOKSHELF', 'BOOK', 'BOOK_LOAN']
+    tables = ['USER', 'LIBRARIAN', 'ROOM', 'LIBRARIAN_ROOM', 'BOOKSHELF', 'BOOK', 'BOOK_LOAN']
+    relations = ['USER(*user_id, name, email, phone)',
+              'LIBRARIAN(*librarian_id, name, phone, email)',
+              'ROOM(*room_id, room_name)',
+              'LIBRARIAN_ROOM(*librarian_id->, *room_id->)',
+              'BOOKSHELF(*bookshelf_id, category, num_books, room_id->)',
+              'BOOK(*book_id, title, author, publisher, category, total_copies, remaining_copies, librarian_id->, bookshelf_id->)',
+              'BOOK_LOAN(*loan_id, book_id->, user_id->, loan_date, return_date)']
     data = {}
 
+    # Add data to the dictionary
     with sqlite3.connect(DB_NAME) as db:
         cursor = db.cursor()
-        for table in tables:
-            data[table] = select_and_fetch(cursor, table)
+        for relation, table in zip(relations, tables):
+            data[relation] = select_and_fetch(cursor, table)
         cursor.close()
 
     print('<< DEBUG MODE >>', end='\n\n')
 
-    for table, rows in data.items():
-        print(f'\n>>========== {table}')
+    # Print the data whlie iterating over the dictionary
+    for relation, rows in data.items():
+        print(f'\n>>========== {relation}')
         for row in rows:
             print(row)
 
@@ -699,6 +723,7 @@ def DEBUG():
 if __name__ == '__main__':
     clear_screen()
 
+    # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--skip-initialize', action='store_true')
     parser.add_argument('-n', '--no-sample-data', action='store_true')
@@ -709,7 +734,7 @@ if __name__ == '__main__':
         print("Warning: '--no-sample-data' option is ignored because '--skip-initialize' option is provided.", end='\n\n')
 
     elif not args.skip_initialize: # initialize the database
-        print("'-s' option is not provided.\nInitializing the database...", end='\n\n')
+        print("Initializing the database...", end='\n\n')
         initialize()
 
         if not args.no_sample_data:
@@ -725,7 +750,8 @@ if __name__ == '__main__':
 
     while True:
         try:
-            print(f'Welcome, {current_user}' if current_user else 'Please login or register first', end='\n\n')
+            # Prints menu
+            print(f'Welcome, {current_user[1]}' if current_user else 'Please login or register first', end='\n\n')
             print(f'<< Main Menu >>', end='\n\n')
             print('1. Login / Register or Manage User Account')
             print('2. Login / Register or Manage Librarian Account')
@@ -765,6 +791,7 @@ if __name__ == '__main__':
             input()
             clear_screen()
 
+        # Catch exceptions
         except Exception as e:
             print(f'Error: {e}')
             print('Please try again.', end='\n\n')
